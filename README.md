@@ -14,8 +14,12 @@ How to use pre production extension:
   - Load the dist folder from the GPTChrome folder
 
 
+
+
 Current functionality:
   - Allows users to talk to GPT-4o Mini directly on any page.
+
+
 
 Planned Features:
   - Will allow users to chat with GPT about the page they are currently viewing.
