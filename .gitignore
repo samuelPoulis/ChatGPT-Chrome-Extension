@@ -1,0 +1,16 @@
+# Node modules
+node_modules/
+
+# Build directories
+dist/
+build/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# OS or editor specific files
+.DS_Store
+*.swp
