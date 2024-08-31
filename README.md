@@ -3,7 +3,7 @@
 How to use pre production extension:
   - Download the files and open them in VScode or any other editor.
   - Create a file named .env and create a variable inside this folder called OPENAI_API_KEY
-  - Get your API key from OpenAI's website and set OPENAI_API_KEY=<your api key>
+  - Get your API key from OpenAI's website and set OPENAI_API_KEY="your api key"
   - Navigate to ../GPTChrome/backend
   - run command "node server.js" to start the local server
   - Open another terminal and navigate to the main directory (../GPTChrome)
