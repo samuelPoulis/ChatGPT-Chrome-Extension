@@ -12,7 +12,7 @@ module.exports = {
   mode: 'production',
   entry: {
     popup: './src/popup.tsx',
-    background: './src/background.ts',
+    background: './src/background.js',
     content: './src/content.ts'
   },
   output: {

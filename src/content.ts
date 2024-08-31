@@ -1,24 +1,19 @@
-console.log("Content script loaded and running");
+let contentScriptInitialized = false;
 
-function getPageContent() {
-  console.log("getPageContent called");
-  return document.body.innerText;
+// Listen for messages from the popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === "isContentScriptReady") {
+    sendResponse({ ready: contentScriptInitialized });
+  } else if (message.action === "getContent") {
+    const pageContent = document.body.innerText || "";
+    sendResponse({ content: pageContent });
+  }
+});
+
+// Initialize the content script
+if (!contentScriptInitialized) {
+  contentScriptInitialized = true;
+  console.log("Content script initialized and ready.");
 }
 
-// Notify that the content script is ready
-console.log("Sending contentScriptReady message");
-chrome.runtime.sendMessage({ action: "contentScriptReady" }, response => {
-  console.log("contentScriptReady message response:", response);
-});
 
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log("Message received in content script:", request);
-  if (request.action === "getContent") {
-    const content = getPageContent();
-    console.log("Sending content:", content.substring(0, 100) + "...");
-    sendResponse({ content: content });
-  }
-  return true;  // Indicates that the response is sent asynchronously
-});
-
-console.log("Content script setup complete");

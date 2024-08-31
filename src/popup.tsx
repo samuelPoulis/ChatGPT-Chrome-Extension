@@ -18,28 +18,29 @@ function Popup() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [pageContent, setPageContent] = useState<string>("");
 
-  useEffect(() => {
-    getPageContent();
-  }, []);
-
-  const getPageContent = async () => {
+  const getPageContent = async (retryCount = 0) => {
     try {
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
-      if (tab.id) {
-        // Wait for content script to be ready
+
+      if (tab?.id !== undefined) {
+        const tabId = tab.id as number;
+
         chrome.runtime.sendMessage(
           { action: "isContentScriptReady" },
           (response) => {
             if (response && response.ready) {
               chrome.tabs.sendMessage(
-                tab.id!,
+                tabId,
                 { action: "getContent" },
                 (response) => {
                   if (chrome.runtime.lastError) {
-                    console.error(chrome.runtime.lastError);
+                    console.error(
+                      "Error sending message to content script:",
+                      chrome.runtime.lastError
+                    );
                     setPageContent(
                       "Unable to fetch page content. Please refresh the page and try again."
                     );
@@ -49,10 +50,21 @@ function Popup() {
                 }
               );
             } else {
-              console.log("Content script not ready, retrying in 1 second");
-              setTimeout(getPageContent, 1000);
+              console.log(
+                `Content script not ready, retrying in ${
+                  2 ** retryCount
+                } seconds`
+              );
+              setTimeout(
+                () => getPageContent(retryCount + 1),
+                1000 * 2 ** retryCount
+              );
             }
           }
+        );
+      } else {
+        console.error(
+          "Tab ID is undefined. Cannot send message to content script."
         );
       }
     } catch (error) {
@@ -60,6 +72,10 @@ function Popup() {
       setPageContent("Error fetching page content. Please try again.");
     }
   };
+
+  useEffect(() => {
+    getPageContent();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputQuery(e.target.value);
@@ -104,7 +120,7 @@ function Popup() {
         { role: "assistant", content: response.data.response },
       ]);
     } catch (error) {
-      // ... (error handling remains the same)
+      console.error("Error processing query:", error);
     } finally {
       setIsLoading(false);
     }
