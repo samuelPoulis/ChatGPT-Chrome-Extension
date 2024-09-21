@@ -1,1 +1,1 @@
-(()=>{"use strict";let e=!1;chrome.runtime.onMessage.addListener(((t,n,i)=>{"isContentScriptReady"===t.action?i({ready:e}):"getContent"===t.action&&i({content:document.body.innerText||""})})),e||(e=!0,console.log("Content script initialized and ready."))})();
+(()=>{"use strict";console.log("content script loaded")})();

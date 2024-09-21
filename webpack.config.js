@@ -3,12 +3,6 @@ const webpack = require('webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-  plugins: [
-    new webpack.DefinePlugin({
-      'process.env.NODE_ENV': JSON.stringify('production')
-    }),
-    // ... other plugins
-  ],
   mode: 'production',
   entry: {
     popup: './src/popup.tsx',
@@ -39,10 +33,13 @@ module.exports = {
     ],
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify('production')
+    }),
+    // ... include other necessary plugins here
     new CopyPlugin({
       patterns: [
         { from: "public/manifest.json", to: "manifest.json" },
-        // Copy other files from public folder if needed
         { from: "public", to: "." },
       ],
     }),
