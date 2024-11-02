@@ -16,66 +16,108 @@ function Popup() {
   const [history, setHistory] = useState<ChatEntry[]>([]);
   const [model, setModel] = useState<string>("gpt-4o-mini");
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [pageContent, setPageContent] = useState<string>("");
+  const [tabId, setTabId] = useState<number | null>(null);
 
-  const getPageContent = async (retryCount = 0) => {
+  // Function to get the current tab ID
+  const getCurrentTabId = async (): Promise<number | null> => {
+    return new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const currentTab = tabs[0];
+        if (currentTab && currentTab.id !== undefined) {
+          resolve(currentTab.id);
+        } else {
+          resolve(null);
+        }
+      });
+    });
+  };
+
+  // Functions to interact with chrome.storage.local
+  const getStoredHistory = async (tabId: number): Promise<ChatEntry[]> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([`chatHistory_${tabId}`], (result) => {
+        if (result[`chatHistory_${tabId}`]) {
+          resolve(result[`chatHistory_${tabId}`]);
+        } else {
+          resolve([]);
+        }
+      });
+    });
+  };
+
+  const setStoredHistory = async (
+    tabId: number,
+    history: ChatEntry[]
+  ): Promise<void> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.set({ [`chatHistory_${tabId}`]: history }, () => {
+        resolve();
+      });
+    });
+  };
+
+  const removeStoredHistory = async (tabId: number): Promise<void> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.remove(`chatHistory_${tabId}`, () => {
+        resolve();
+      });
+    });
+  };
+
+  // On component mount, get the tab ID and load history
+  useEffect(() => {
+    const init = async () => {
+      const id = await getCurrentTabId();
+      if (id !== null) {
+        setTabId(id);
+        const storedHistory = await getStoredHistory(id);
+        setHistory(storedHistory);
+      }
+    };
+    init();
+  }, []);
+
+  // Save history whenever it changes
+  useEffect(() => {
+    const saveHistoryAsync = async () => {
+      if (tabId !== null) {
+        await setStoredHistory(tabId, history);
+      }
+    };
+    saveHistoryAsync();
+  }, [history, tabId]);
+
+  const getPageContent = async (): Promise<string | null> => {
     try {
-      const [tab] = await chrome.tabs.query({
+      let [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
+      if (tab.id !== undefined) {
+        const [injectionResult] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: () => {
+            const elements = document.querySelectorAll(
+              "p, h1, h2, h3, h4, h5, h6"
+            );
+            return Array.from(elements)
+              .map((el) => (el as HTMLElement).innerText)
+              .join("\n");
+          },
+        });
 
-      if (tab?.id !== undefined) {
-        const tabId = tab.id as number;
-
-        chrome.runtime.sendMessage(
-          { action: "isContentScriptReady" },
-          (response) => {
-            if (response && response.ready) {
-              chrome.tabs.sendMessage(
-                tabId,
-                { action: "getContent" },
-                (response) => {
-                  if (chrome.runtime.lastError) {
-                    console.error(
-                      "Error sending message to content script:",
-                      chrome.runtime.lastError
-                    );
-                    setPageContent(
-                      "Unable to fetch page content. Please refresh the page and try again."
-                    );
-                  } else if (response && response.content) {
-                    setPageContent(response.content);
-                  }
-                }
-              );
-            } else {
-              console.log(
-                `Content script not ready, retrying in ${
-                  2 ** retryCount
-                } seconds`
-              );
-              setTimeout(
-                () => getPageContent(retryCount + 1),
-                1000 * 2 ** retryCount
-              );
-            }
-          }
-        );
+        const pageContent = injectionResult.result ?? null;
+        console.log("Page content:", pageContent);
+        return pageContent;
       } else {
-        console.error(
-          "Tab ID is undefined. Cannot send message to content script."
-        );
+        console.error("Tab ID is undefined");
+        return null;
       }
     } catch (error) {
-      console.error("Error fetching page content:", error);
-      setPageContent("Error fetching page content. Please try again.");
+      console.error("An error occurred:", error);
+      return null;
     }
   };
-
-  useEffect(() => {
-    getPageContent();
-  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputQuery(e.target.value);
@@ -90,15 +132,11 @@ function Popup() {
 
   const handleAnalyzeClick = async () => {
     if (inputQuery.trim() === "" || isLoading) return;
-    await processQuery(inputQuery.trim());
+    const pageContent = await getPageContent();
+    await processQuery(inputQuery.trim(), pageContent);
   };
 
-  const handleAnalyzePageContent = async () => {
-    if (isLoading) return;
-    await processQuery(`Analyze this content: ${pageContent}`);
-  };
-
-  const processQuery = async (query: string) => {
+  const processQuery = async (query: string, pageContent: string | null) => {
     const userMessage: ChatEntry = { role: "user", content: query };
     setHistory((prevHistory) => [...prevHistory, userMessage]);
     setInputQuery("");
@@ -126,9 +164,12 @@ function Popup() {
     }
   };
 
-  const handleClearClick = () => {
+  const handleClearClick = async () => {
     setHistory([]);
     setInputQuery("");
+    if (tabId !== null) {
+      await removeStoredHistory(tabId);
+    }
   };
 
   return (
@@ -136,7 +177,6 @@ function Popup() {
       className="flex flex-col items-center justify-start p-6"
       style={{ width: "400px", minHeight: "500px" }}
     >
-      <h1 className="text-2xl font-bold mb-6">AI ANALYZER</h1>
       <select
         value={model}
         onChange={(e) => setModel(e.target.value)}
@@ -159,7 +199,7 @@ function Popup() {
       </ScrollArea>
       <Input
         type="text"
-        placeholder="Ask a question..."
+        placeholder="Ask a question about this page..."
         value={inputQuery}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
@@ -184,14 +224,6 @@ function Popup() {
           Clear Chat
         </Button>
       </div>
-      <Button
-        onClick={handleAnalyzePageContent}
-        className="w-full text-lg py-3"
-        variant="outline"
-        disabled={isLoading}
-      >
-        Analyze Page Content
-      </Button>
     </div>
   );
 }

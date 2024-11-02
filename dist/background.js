@@ -1,1 +1,0 @@
-chrome.tabs.onUpdated.addListener(((t,e,r)=>{"complete"===e.status&&r.url&&/^http/.test(r.url)&&chrome.scripting.executeScript({target:{tabId:t},files:["content.js"]},(()=>{chrome.runtime.lastError?console.error("Error injecting content script:",chrome.runtime.lastError):console.log("Content script injected successfully.")}))}));
